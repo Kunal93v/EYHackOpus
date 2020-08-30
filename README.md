@@ -8,5 +8,6 @@ Simply go the above link and upload the Demand excel sheet along with the wieght
 To Run the code locally - 
 
 1. Provide an 'UPLOAD_PATH' in the code to render the Demand Excel file for flask server
+2. Provie the path to the supply data to the variable 'xls' in the code
 2. Go to http://127.0.0.1:5000/
 3. Follow the upload steps 
