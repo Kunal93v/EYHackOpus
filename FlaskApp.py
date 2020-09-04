@@ -11,11 +11,14 @@ from werkzeug.utils import secure_filename
 from flask import flash,request,send_file
 from flask import Flask, render_template, session, redirect
 
-app = Flask(__name__)
+
+app = Flask(__name__, template_folder='templates')
 
 
 from flask import Flask, flash, request, redirect, render_template, jsonify
 from werkzeug.utils import secure_filename
+
+
 
 UPLOAD_FOLDER = r'/home/kunal93v/Upload/'
 
@@ -29,84 +32,12 @@ ALLOWED_EXTENSIONS = set(['csv', 'xlsx'])
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
+
 @app.route('/')
 def upload_form():
-    return '''
-    <!doctype html>
-    <html lang="en">
-        <html>
-        <head>
-        <title>Upload Demand File</title>
-        <script type="text/javascript" src="https://code.jquery.com/jquery-3.4.1.min.js"></script>
-        <script type="text/javascript">
-            $(document).ready(function (e) {
-                $('#upload').on('click', function () {
-                    var form_data = new FormData();
-                    var ins = document.getElementById('multiFiles').files.length;
+    return render_template('upload.html')
 
-                    if(ins == 0) {
-                        $('#msg').html('<span style="color:red">Select at least one file</span>');
-                        return;
-                    }
 
-                    for (var x = 0; x < ins; x++) {
-                        form_data.append("files[]", document.getElementById('multiFiles').files[x]);
-                    }
-
-                    $.ajax({
-                        url: 'python-flask-files-upload', // point to server-side URL
-                        dataType: 'json', // what to expect back from server
-                        cache: false,
-                        contentType: false,
-                        processData: false,
-                        data: form_data,
-                        type: 'post',
-                        success: function (response) { // display success response
-                            $('#msg').html('');
-                            $.each(response, function (key, data) {
-                                if(key !== 'message') {
-                                    $('#msg').append(key + ' -> ' + data + '<br/>');
-                                } else {
-                                    $('#msg').append(data + '<br/>');
-                                }
-                            })
-                        },
-                        error: function (response) {
-                            $('#msg').html(response.message); // display error response
-                        }
-                    });
-                });
-            });
-        </script>
-        </head>
-        <body>
-        <h2>Upload Demand File</h2>
-        <dl>
-            <p>
-                <p id="msg"></p>
-                <input type="file" id="multiFiles" name="files[]" multiple="multiple"/>
-                <button id="upload">Upload</button>
-            </p>
-        </dl>
-        </body>
-
-    <html>
-       <body>
-          <form action = "https://kunal93v.pythonanywhere.com/match_demand?" method = "GET">
-          <h2>Please Provide Weights in Percentage Values (e.g -10 for 10%)</h2>
-             <p>Weight - Tech Skills <input type = "text" name = "w_T" /></p>
-             <p>Weight - Process Skills <input type = "text" name = "w_P" /></p>
-             <p>Weight - Functional Skills <input type = "text" name = "w_F" /></p>
-             <p>Weight - Rank <input type ="text" name = "w_Rnk" /></p>
-             <p>Weight - Bench <input type ="text" name = "w_Bnch" /></p>
-             <p>Weight - Exp <input type ="text" name = "w_Exp" /></p>
-             <p>Weight - Location <input type ="text" name = "w_L" /></p>
-             <p><input type = "submit" value = "submit" /></p>
-          </form>
-       </body>
-
-    </html>
-    '''
 @app.route('/match_demand', methods = ["GET","POST"])
 def match_demand():
 
@@ -129,7 +60,7 @@ def match_demand():
     import en_core_web_sm
     import glob
 
-    path = os.getcwd()
+    path  = os.getcwd()
     files = os.listdir(UPLOAD_FOLDER)
 
     files = [f for f in files if f.split(".")[1] in ['xls', 'xlsx']]
@@ -147,10 +78,13 @@ def match_demand():
 
 
 
+
+
     xls = pd.ExcelFile('/home/kunal93v/PS1 - ES Hackathon_SampleData_AI In Capacity Management8421018.xlsx')
     Skill_Tree = pd.read_excel(xls, 'Skill_Tree')
 
-    Supply = pd.read_excel(xls, 'Supply')
+    #Supply = pd.read_excel(xls, 'Supply')
+    Supply = pd.read_excel('/home/kunal93v/simulated_data.xlsx')
     Supply = Supply.fillna('NA')
     Supply[['Sub Unit 1', 'Sub Unit 2', 'Sub Unit 3',
        'Skill']] = Supply[['Sub Unit 1', 'Sub Unit 2', 'Sub Unit 3',
@@ -166,13 +100,15 @@ def match_demand():
     Supply['sub_SL_Score'] = 0
     Supply['SMU_Score'] = 0
     Supply['Min_Exp_Score'] = 0
-    Supply['Rank'] = 0
+    Supply['Rank_flag'] = 0
 
 
     Supply['Tech_Score'], Supply['Func_Score'], Supply['Proc_Score'], Supply['Cum_Score'],Supply['Requestor'], Supply['Overall_Skills'] = None, None, None, None, None, None
+    Supply['Years of experience norm'], Supply['Bench Ageing (weeks) norm'] = None, None
+
     Demand['Best Bet'], Demand['Best fit'], Demand['Stretched fit'] =None, None, None
-    Supply['Years of experience'] = (Supply['Years of experience'] - Supply['Years of experience'].min())/(Supply['Years of experience'].max() - Supply['Years of experience'].min())
-    Supply['Bench Ageing (weeks)'] = (Supply['Bench Ageing (weeks)'] - Supply['Bench Ageing (weeks)'].min())/(Supply['Bench Ageing (weeks)'].max() - Supply['Bench Ageing (weeks)'].min())
+    Supply['Years of experience norm'] = (Supply['Years of experience'] - Supply['Years of experience'].min())/(Supply['Years of experience'].max() - Supply['Years of experience'].min())
+    Supply['Bench Ageing (weeks) norm'] = (Supply['Bench Ageing (weeks)'] - Supply['Bench Ageing (weeks)'].min())/(Supply['Bench Ageing (weeks)'].max() - Supply['Bench Ageing (weeks)'].min())
 
 
     out_df = pd.DataFrame()
@@ -201,11 +137,11 @@ def match_demand():
             Supply.loc[(Supply['Name/ID'] == E) & (Supply[Supply['Name/ID'] == E]['Sub Service Line'].values[0] ==  Demand[Demand.Requestor == r]['Requestor Sub ServiceLine'].values[0]), 'sub_SL_Score'] = 1
             Supply.loc[(Supply['Name/ID'] == E) & (Supply[Supply['Name/ID'] == E]['SMU'].values[0] ==  Demand[Demand.Requestor == r]['Requestor SMU'].values[0]), 'SMU_Score'] = 1
             Supply.loc[(Supply['Name/ID'] == E) & (Supply[Supply['Name/ID'] == E]['Years of experience'].values[0] >=  float(Demand[Demand.Requestor == r]['Min Experience'].values[0])), 'Min_Exp_Score'] = 1
-            Supply.loc[(Supply['Name/ID'] == E) & (Supply[Supply['Name/ID'] == E]['Rank'].values[0] ==  Demand[Demand.Requestor == r]['Rank'].values[0]), 'Rank'] = 1
+            Supply.loc[(Supply['Name/ID'] == E) & (Supply[Supply['Name/ID'] == E]['Rank'].values[0] ==  Demand[Demand.Requestor == r]['Rank'].values[0]), 'Rank_flag'] = 1
             Supply.loc[Supply['Name/ID'] == E , 'Overall_Skills'] = SSt
 
             Supply['Cum_Score'] = (w_T*Supply['Tech_Score'] + w_F*Supply['Func_Score'] + w_P*Supply['Proc_Score'] + w_L*Supply['Loc_Score'] +\
-                w_Exp*Supply['Min_Exp_Score']*Supply['Years of experience'] + w_Rnk*Supply['Rank'] + w_Bnch*Supply['Bench Ageing (weeks)'] +\
+                w_Exp*Supply['Min_Exp_Score']*Supply['Years of experience norm'] + w_Rnk*Supply['Rank_flag'] + w_Bnch*Supply['Bench Ageing (weeks) norm'] +\
             10*Supply['SL_Score'] + 10*Supply['sub_SL_Score'] + 10*Supply['SMU_Score'] + 10*Supply['Skill Level'])/(w_T + w_F + w_P + w_L +\
                                                                                                                    w_Exp + w_Rnk + w_Bnch + 40)
             Supply['Requestor'] = r
@@ -216,9 +152,9 @@ def match_demand():
 
 
     out_df['Cum_Score'] = out_df['Cum_Score'].astype('float')
-    out_df = out_df[['Requestor','Name/ID', 'Primary Unit','Overall_Skills', 'Skill Level', 'Years of experience', 'Rank', 'Service Line',
+    out_df = out_df[['Requestor','Name/ID', 'Overall_Skills', 'Skill Level', 'Years of experience', 'Rank', 'Service Line',
            'Sub Service Line', 'SMU',  'City', 'Bench Ageing (weeks)',
-           'Loc_Score', 'SL_Score', 'sub_SL_Score', 'SMU_Score', 'Min_Exp_Score',
+           'Loc_Score', 'SL_Score', 'sub_SL_Score', 'SMU_Score',
            'Tech_Score', 'Func_Score', 'Proc_Score',
             'Cum_Skills_Score','Cum_Score']] #'Sub Unit 1', 'Sub Unit 2','Sub Unit 3','Skill',
 
@@ -230,19 +166,22 @@ def match_demand():
 
     def fitment_class(x, m = M):
         if x/m >= 0.85:
-            return 'best bet'
+            return 'Best Fit'
         elif (x/m < 0.85) & (x/m > 0.7):
-            return 'best fit'
+            return 'Stretched Fit'
+
         elif (x/m < 0.7) & (x/m >0.6):
-            return 'stretched fit'
+            return 'Best Bet'
+
         else:
-            return 'no fit'
+            return 'No Fit'
 
     out_df['fitment_class'] = out_df.Cum_Score.apply(fitment_class)
     out_df['fitment_percentage'] = 100*out_df.Cum_Score/M
-    out_df = out_df.sort_values(by = ['Requestor','Loc_Score','Cum_Skills_Score','Years of experience','Skill Level',
-                                    'Bench Ageing (weeks)','SMU_Score', 'sub_SL_Score', 'SL_Score', 'Cum_Score'], ascending = [True,  False, False,  False,False, False, False, False, False, False])
-    return out_df.to_html(header="true", table_id="table")
+    out_df = out_df.sort_values(by = ['Requestor','fitment_percentage'], ascending = [True,  False])
+
+    out_df.to_csv('/home/kunal93v/mysite/out.csv' , index = None, header=True)
+    return render_template('simple.html',   tables=[out_df.to_html(classes='data', header="true")])
 
 
 
@@ -281,4 +220,7 @@ def upload_file():
         resp.status_code = 400
         return resp
 
-
+@app.route('/download')
+def download_file():
+    p = 'out.csv'
+    return send_file(p, as_attachment = True , cache_timeout=0)
